@@ -135,8 +135,8 @@ pacman -S --noconfirm grub efibootmgr networkmanager git reflector neovim firefo
 echo "Installing desktop environment and utilities..."
 # Install packages required by dotfiles
 pacman -S --noconfirm xorg-server xorg-xinit xorg-xwayland \
-hyprland alacritty dunst eww waybar \
-fish zsh neovim neofetch picom starship \
+hyprland kitty dunst eww waybar \
+zsh vim neovim neofetch picom \
 gtk3 gtk4 gtk-engine-murrine \
 ttf-jetbrains-mono noto-fonts noto-fonts-emoji noto-fonts-cjk \
 ttf-font-awesome ttf-nerd-fonts-symbols ttf-joypixels \
