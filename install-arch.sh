@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Arch Linux Automated Installation Script with Dotfiles
-# Author: OpenAI Assistant
-# Date: [Current Date]
+# Arch Linux Automated Installation Script without Initial Dotfiles
+# Author: Grok 2 by xAI
+# Date: 2024-12-30
 
 set -e
 
 # Variables
-DISK="/dev/nvme0n1"
+DISK="/dev/nvme0n1"  # Change this if your NVMe is different
 HOSTNAME="archlinux"
 USERNAME="yup"
 PASSWORD="ok"
@@ -15,10 +15,29 @@ TIMEZONE="America/Los_Angeles"
 LOCALE="en_US.UTF-8"
 LANGUAGE="en_US:en"
 EFI_SIZE="+512M"
-SWAP_SIZE="32G"
+SWAP_SIZE="20G"
 DOTFILES_REPO="https://github.com/utkarshkrsingh/.dotfiles"
 
-# Update system clock
+# Function to prompt for password
+prompt_for_password() {
+    read -r -s -p "Enter password for root and user $USERNAME: " PASSWORD
+    echo
+    if [ -z "$PASSWORD" ]; then
+        echo "Password cannot be empty."
+        exit 1
+    fi
+}
+
+# Ensure script runs as root
+if [ "$(id -u)" -ne 0 ]; then
+   echo "This script must be run as root"
+   exit 1
+fi
+
+# Prompt for password
+prompt_for_password
+
+echo "Updating system clock..."
 timedatectl set-ntp true
 
 echo "Partitioning the disk..."
@@ -103,7 +122,7 @@ mkinitcpio -P
 
 echo "Setting root password..."
 # Set root password
-echo "root:$PASSWORD" | chpasswd
+echo -e "$PASSWORD\n$PASSWORD" | passwd
 
 echo "Configuring pacman for parallel downloads..."
 # Enable parallel downloads
@@ -126,7 +145,7 @@ polkit polkit-gnome
 
 echo "Installing Intel GPU drivers..."
 # Install Intel GPU drivers
-pacman -S --noconfirm mesa libva-intel-driver intel-media-driver
+pacman -S --noconfirm mesa libva-intel-driver intel-media-driver opencl
 
 echo "Installing GRUB bootloader..."
 # Install bootloader
@@ -141,33 +160,39 @@ systemctl enable bluetooth
 echo "Creating user $USERNAME..."
 # Create user
 useradd -m -G wheel -s /bin/fish $USERNAME
-echo "$USERNAME:$PASSWORD" | chpasswd
+echo -e "$PASSWORD\n$PASSWORD" | passwd $USERNAME
 
 echo "Configuring sudoers file..."
 # Allow wheel group sudo privileges
 sed -i '/^# %wheel ALL=(ALL:ALL) ALL/s/^# //' /etc/sudoers
 
-echo "Setting up user environment and cloning dotfiles..."
-# Switch to user and clone dotfiles
-su - $USERNAME <<EOL
+echo "Creating a systemd service for post-reboot dotfiles installation..."
+cat <<SERVICE > /etc/systemd/system/dotfiles-setup.service
+[Unit]
+Description=Dotfiles Setup
+After=network.target
 
-echo "Cloning dotfiles..."
-git clone --recursive $DOTFILES_REPO ~/.dotfiles
+[Service]
+Type=oneshot
+User=$USERNAME
+ExecStart=/usr/bin/bash -c "[ ! -d /home/$USERNAME/.dotfiles ] && git clone $DOTFILES_REPO /home/$USERNAME/.dotfiles"
+ExecStartPost=/usr/bin/bash /home/$USERNAME/.dotfiles/setup.sh
+ExecStartPost=/usr/bin/rm -f /etc/systemd/system/dotfiles-setup.service
+ExecStartPost=/usr/bin/systemctl daemon-reload
+StandardOutput=journal
+StandardError=journal
 
-echo "Installing GNU Stow..."
-sudo pacman -S --noconfirm stow
+[Install]
+WantedBy=multi-user.target
+SERVICE
 
-echo "Setting up dotfiles using stow..."
-cd ~/.dotfiles
-stow */
-
-EOL
+systemctl enable dotfiles-setup.service
 
 EOF
 
 echo "Unmounting partitions and finishing installation..."
-# Unmount and reboot
 umount -R /mnt
 swapoff -a
 
-echo "Installation complete! You can now reboot your system."
+echo "Installation complete. Rebooting system..."
+reboot
