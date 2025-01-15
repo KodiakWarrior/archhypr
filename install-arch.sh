@@ -16,7 +16,6 @@ LOCALE="en_US.UTF-8"
 LANGUAGE="en_US:en"
 EFI_SIZE="+512M"
 SWAP_SIZE="20G"
-DOTFILES_REPO="https://github.com/utkarshkrsingh/.dotfiles"
 
 # Function to prompt for password
 prompt_for_password() {
@@ -166,27 +165,6 @@ echo "Configuring sudoers file..."
 # Allow wheel group sudo privileges
 sed -i '/^# %wheel ALL=(ALL:ALL) ALL/s/^# //' /etc/sudoers
 
-echo "Creating a systemd service for post-reboot dotfiles installation..."
-cat <<SERVICE > /etc/systemd/system/dotfiles-setup.service
-[Unit]
-Description=Dotfiles Setup
-After=network.target
-
-[Service]
-Type=oneshot
-User=$USERNAME
-ExecStart=/usr/bin/bash -c "[ ! -d /home/$USERNAME/.dotfiles ] && git clone $DOTFILES_REPO /home/$USERNAME/.dotfiles"
-ExecStartPost=/usr/bin/bash /home/$USERNAME/.dotfiles/setup.sh
-ExecStartPost=/usr/bin/rm -f /etc/systemd/system/dotfiles-setup.service
-ExecStartPost=/usr/bin/systemctl daemon-reload
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-SERVICE
-
-systemctl enable dotfiles-setup.service
 
 EOF
 
